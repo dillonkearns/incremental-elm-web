@@ -5,8 +5,8 @@
   "scripts": {
     "start": "npm run elm-graphql && elm-pages develop --port 1234",
     "serve": "npm run build && http-server ./dist -a localhost -p 3000 --gzip -c31557600",
-    "elm-graphql": "elm-graphql https://oqagd84p.api.sanity.io/v1/graphql/production/default --skip-elm-format --output elm-graphql-gen/ --base SanityApi --scalar-codecs Scalar",
-    "build": "npm run elm-graphql && rm -rf dist && (cd elm-pages && npm run build) && elm-pages build",
+    "elm-graphql": "PATH=$(npm bin):$PATH elm-graphql https://oqagd84p.api.sanity.io/v1/graphql/production/default --skip-elm-format --output elm-graphql-gen/ --base SanityApi --scalar-codecs Scalar",
+    "build": "npm run elm-graphql && elm-pages build",
     "test": "elm-test",
     "autotest": "elm-test --watch",
     "postinstall": "elm-tooling install"
@@ -14,20 +14,23 @@
   "author": "Dillon Kearns",
   "license": "BSD-3",
   "dependencies": {
-    "@github/time-elements": "^3.1.0",
-    "assets": "^3.0.1",
-    "glob": "^7.1.6"
+    "@github/time-elements": "^3.1.0"
   },
   "devDependencies": {
-    "@dillonkearns/elm-graphql": "^4.2.0",
+    "@dillonkearns/elm-graphql": "^4.2.1",
+    "@tailwindcss/typography": "^0.4.1",
     "@types/glob": "^7.1.1",
     "@types/node": "^12.6.8",
     "codemirror": "^5.48.2",
     "elm-format": "0.8.3",
+    "elm-optimize-level-2": "^0.1.5",
     "elm-pages": "file:elm-pages",
+    "elm-review": "^2.5.3",
+    "elm-tailwind-modules": "^0.3.2",
     "elm-test": "^0.19.1-revision4",
     "elm-tooling": "^1.1.0",
-    "http-server": "^0.12.3",
-    "prettier": "^2.1.2"
+    "postcss": "^8.3.5",
+    "prettier": "^2.1.2",
+    "tailwindcss": "^2.2.4"
   }
 }

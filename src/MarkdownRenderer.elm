@@ -1,4 +1,4 @@
-module MarkdownRenderer exposing (TableOfContents, view)
+module MarkdownRenderer exposing (TableOfContents, renderer, view)
 
 import Dict
 import Element exposing (Element)
@@ -18,6 +18,7 @@ import Palette
 import Regex
 import Style
 import Style.Helpers
+import SyntaxHighlight
 import View.Ellie
 import View.FontAwesome
 import View.Resource
@@ -136,20 +137,38 @@ renderer =
     , text = \value -> Element.paragraph [] [ Element.text value ]
     , strong = \content -> Element.paragraph [ Font.bold ] content
     , emphasis = \content -> Element.paragraph [ Font.italic ] content
+    , strikethrough = \content -> Element.paragraph [ Font.strike ] content
     , codeSpan = code
     , link =
         \{ title, destination } body ->
-            Element.newTabLink []
-                { url = destination
-                , label =
-                    Element.paragraph
-                        [ Font.color (Element.rgb255 17 132 206)
-                        , Element.mouseOver [ Font.color (Element.rgb255 234 21 122) ]
-                        , Element.htmlAttribute (Html.Attributes.style "overflow-wrap" "break-word")
-                        , Element.htmlAttribute (Html.Attributes.style "word-break" "break-word")
-                        ]
-                        body
-                }
+            if (destination |> String.startsWith "http") || (destination |> String.startsWith "/") then
+                Element.newTabLink []
+                    { url = destination
+                    , label =
+                        Element.paragraph
+                            [ Font.color (Element.rgb255 17 132 206)
+                            , Element.mouseOver [ Font.color (Element.rgb255 234 21 122) ]
+                            , Element.htmlAttribute (Html.Attributes.style "overflow-wrap" "break-word")
+                            , Element.htmlAttribute (Html.Attributes.style "word-break" "break-word")
+                            ]
+                            body
+                    }
+
+            else
+                Element.link
+                    [ Element.htmlAttribute
+                        (Html.Attributes.attribute "elm-pages:prefetch" "")
+                    ]
+                    { url = destination
+                    , label =
+                        Element.paragraph
+                            [ Font.color (Element.rgb255 17 132 206)
+                            , Element.mouseOver [ Font.color (Element.rgb255 234 21 122) ]
+                            , Element.htmlAttribute (Html.Attributes.style "overflow-wrap" "break-word")
+                            , Element.htmlAttribute (Html.Attributes.style "word-break" "break-word")
+                            ]
+                            body
+                    }
     , image =
         \image ->
             Element.image
@@ -421,13 +440,11 @@ code snippet =
 
 codeBlock : { body : String, language : Maybe String } -> Element msg
 codeBlock details =
-    Html.node "code-editor"
-        [ editorValue details.body
-        , Html.Attributes.style "white-space" "normal"
-        ]
-        []
-        |> Element.html
-        |> Element.el [ Element.width Element.fill ]
+    SyntaxHighlight.elm details.body
+        |> Result.map (SyntaxHighlight.toBlockHtml (Just 1))
+        |> Result.map Element.html
+        |> Result.map (Element.el [ Element.width Element.fill ])
+        |> Result.withDefault (Element.text "")
 
 
 editorValue : String -> Attribute msg

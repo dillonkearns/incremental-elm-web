@@ -1,27 +1,23 @@
 module View.Navbar exposing (modalMenuView, view)
 
-import Animation exposing (backgroundColor)
-import Browser
-import Browser.Dom
-import Browser.Events
-import Browser.Navigation
+import Animation
 import Dimensions
 import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font
-import ElmLogo
-import Html exposing (Html)
+import Link
+import Route exposing (Route)
 import Style exposing (fontSize, fonts, palette)
 import Style.Helpers
-import Task
-import Time
-import Url exposing (Url)
-import Url.Builder
-import View.FontAwesome
 import View.MenuBar
 
 
+view :
+    { a | dimensions : Dimensions.Dimensions, menuBarAnimation : View.MenuBar.Model }
+    -> ({ a | dimensions : Dimensions.Dimensions, menuBarAnimation : View.MenuBar.Model } -> Element c)
+    -> c
+    -> Element c
 view model animationView startAnimationMsg =
     Element.row
         [ Element.spaceEvenly
@@ -33,13 +29,15 @@ view model animationView startAnimationMsg =
         ]
 
 
+links : List { name : String, url : Route }
 links =
-    [ { name = "Live Streams", url = "/live" }
-    , { name = "Articles", url = "/articles" }
-    , { name = "Services", url = "/services" }
+    [ { name = "Notes", url = Route.Notes }
+    , { name = "Live Streams", url = Route.Live }
+    , { name = "Services", url = Route.Page_ { page = "services" } }
     ]
 
 
+linksView : { a | dimensions : Dimensions.Dimensions, menuBarAnimation : View.MenuBar.Model } -> msg -> Element msg
 linksView model startAnimationMsg =
     Element.row
         [ Element.spacing 20
@@ -58,6 +56,7 @@ linksView model startAnimationMsg =
         )
 
 
+contactButton : Element msg
 contactButton =
     Element.link
         [ Element.centerX
@@ -69,15 +68,15 @@ contactButton =
                 , backgroundColor = .highlight
                 , size = fontSize.body
                 }
-                [ Element.text "Get Weekly elm Tips" ]
+                [ Element.text "Elm Tips" ]
         }
 
 
+linkView : { url : Route, name : String } -> Element msg
 linkView link =
-    Element.link [ Element.width Element.fill ]
-        { label = Element.text link.name
-        , url = link.url
-        }
+    Link.link link.url
+        [ Element.width Element.fill ]
+        (Element.text link.name)
 
 
 modalMenuView menuAnimation =
@@ -98,13 +97,14 @@ modalMenuView menuAnimation =
             , Element.width Element.shrink
             , Element.spacing 25
             , fonts.body
-            , Style.fontSize.title
+            , fontSize.title
             , Element.Font.color palette.bold
             ]
             ((links |> List.map linkView) ++ [ contactButton ])
         ]
 
 
+logoView : a -> (a -> Element msg) -> Element msg
 logoView model animationView =
     Element.link
         []
@@ -120,6 +120,7 @@ logoView model animationView =
         }
 
 
+logoText : Element msg
 logoText =
     [ Element.text "Incremental Elm"
         |> Element.el

@@ -1,36 +1,24 @@
-module Site exposing (..)
+module Site exposing (Data, canonicalUrl, config)
 
-import Color
-import Pages
+import DataSource
+import Head
 import Pages.Manifest as Manifest
-import Pages.Manifest.Category
+import Route
+import SiteConfig exposing (SiteConfig)
 
 
+type alias Data =
+    ()
+
+
+config : SiteConfig Data
 config =
-    { canonicalUrl = canonicalUrl
-    , manifest = manifest
-    }
-
-
-manifest : Manifest.Config Pages.PathKey
-manifest =
-    { backgroundColor = Just Color.white
-    , categories = [ Pages.Manifest.Category.education ]
-    , displayMode = Manifest.MinimalUi
-    , orientation = Manifest.Portrait
-    , description = tagline
-    , iarcRatingId = Nothing
-    , name = "Incremental Elm Consulting"
-    , themeColor = Just Color.white
-    , startUrl = Pages.pages.index
-    , shortName = Just "Incremental Elm"
-    , sourceIcon = Pages.images.iconPng
-    , icons = []
-    }
-
-
-tagline =
-    "Incremental Elm Consulting"
+    \_ ->
+        { data = data
+        , canonicalUrl = canonicalUrl
+        , manifest = manifest
+        , head = head
+        }
 
 
 canonicalUrl : String
@@ -38,6 +26,22 @@ canonicalUrl =
     "https://incrementalelm.com"
 
 
-name : String
-name =
-    "Incremental Elm Consulting"
+data : DataSource.DataSource Data
+data =
+    DataSource.succeed ()
+
+
+head : Data -> List Head.Tag
+head _ =
+    [ Head.sitemapLink "/sitemap.xml"
+    ]
+
+
+manifest : Data -> Manifest.Config
+manifest _ =
+    Manifest.init
+        { name = "Site Name"
+        , description = "Description"
+        , startUrl = Route.toPath Route.Index
+        , icons = []
+        }

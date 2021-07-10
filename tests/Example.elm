@@ -1,7 +1,7 @@
-module Example exposing (..)
+module Example exposing (suite)
 
 import Date
-import Expect exposing (Expectation)
+import Expect
 import Iso8601
 import Rss exposing (DateOrTime)
 import Test exposing (..)
@@ -58,25 +58,10 @@ okOrCrash value =
             Debug.todo (Debug.toString err)
 
 
-hasFuturePublishDate : Time.Posix -> DateOrTime -> Bool
-hasFuturePublishDate now dateOrTime =
-    let
-        zone =
-            Time.customZone (-8 * 60) []
-    in
-    case dateOrTime of
-        Rss.Date publishDate ->
-            -- now > publishDate
-            Date.compare (Date.fromPosix zone now |> Debug.log "date") publishDate == LT
-
-        Rss.DateTime publishDateTime ->
-            -- now > publishDateTime
-            Date.compare (Date.fromPosix zone now) (Date.fromPosix zone publishDateTime) == LT
-
-
 onOrAfterPublishDate : Time.Posix -> DateOrTime -> Bool
 onOrAfterPublishDate now dateOrTime =
     let
+        zone : Time.Zone
         zone =
             Time.utc
     in

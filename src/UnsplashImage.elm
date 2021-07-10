@@ -1,14 +1,18 @@
-module UnsplashImage exposing (UnsplashImage, decoder, fromId, image, imagePath, rawUrl)
+module UnsplashImage exposing (UnsplashImage, decoder, default, fromId, image, imagePath, rawUrl)
 
 import Element
-import Json.Decode as Decode exposing (Decoder)
-import Pages
-import Pages.ImagePath as ImagePath exposing (ImagePath)
+import OptimizedDecoder as Decode exposing (Decoder)
+import Pages.Url
 import Url.Builder exposing (string)
 
 
 type UnsplashImage
     = UnsplashImage String
+
+
+default : UnsplashImage
+default =
+    fromId "1587382668076-5101b7cd8eae"
 
 
 image :
@@ -22,10 +26,10 @@ image attrs (UnsplashImage url_) =
         }
 
 
-imagePath : UnsplashImage -> ImagePath Pages.PathKey
+imagePath : UnsplashImage -> Pages.Url.Url
 imagePath (UnsplashImage url_) =
     url_
-        |> ImagePath.external
+        |> Pages.Url.external
 
 
 rawUrl : UnsplashImage -> String

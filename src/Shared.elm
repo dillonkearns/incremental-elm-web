@@ -1,87 +1,88 @@
-module Shared exposing (..)
+port module Shared exposing (Data, Model, Msg(..), SharedMsg(..), template)
 
-import Animation
+import Animation exposing (Interpolation)
 import Browser.Dom as Dom
 import Browser.Events
+import Browser.Navigation
+import Css
+import DarkMode exposing (DarkMode)
+import DataSource
 import Dimensions exposing (Dimensions)
 import Ease
-import Element exposing (Element)
-import Element.Font as Font
+import Element
 import ElmLogo
 import Html exposing (Html)
+import Html.Styled exposing (div)
+import Html.Styled.Attributes exposing (css)
 import Http
-import Pages
-import Pages.PagePath exposing (PagePath)
-import Pages.StaticHttp as StaticHttp
+import Json.Decode
+import Pages.Flags
+import Pages.PageUrl exposing (PageUrl)
+import Path exposing (Path)
+import SharedTemplate exposing (SharedTemplate)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
+import Tailwind.Breakpoints as Bp
+import Tailwind.Utilities as Tw
 import Task
-import TemplateType exposing (TemplateType)
 import Time
 import TwitchButton
+import View exposing (View)
 import View.MenuBar
 import View.Navbar
+import View.TailwindNavbar
 
 
-type alias SharedTemplate templateDemuxMsg msg1 msg2 =
-    { init :
-        Maybe
-            { path :
-                { path : PagePath Pages.PathKey
-                , query : Maybe String
-                , fragment : Maybe String
-                }
-            , metadata : TemplateType
-            }
-        -> ( Model, Cmd Msg )
-    , update : Msg -> Model -> ( Model, Cmd Msg )
-    , view :
-        StaticData
-        ->
-            { path : PagePath Pages.PathKey
-            , frontmatter : TemplateType
-            }
-        -> Model
-        -> (Msg -> templateDemuxMsg)
-        -> PageView templateDemuxMsg
-        -> { body : Html templateDemuxMsg, title : String }
-    , map : (msg1 -> msg2) -> PageView msg1 -> PageView msg2
-    , staticData : List ( PagePath Pages.PathKey, TemplateType ) -> StaticHttp.Request StaticData
-    , subscriptions : TemplateType -> PagePath Pages.PathKey -> Model -> Sub Msg
-    , onPageChange :
-        Maybe
-            ({ path : PagePath Pages.PathKey
-             , query : Maybe String
-             , fragment : Maybe String
-             }
-             -> Msg
-            )
-    }
+port toggleDarkMode : () -> Cmd msg
 
 
-template : SharedTemplate msg msg1 msg2
+template : SharedTemplate Msg Model Data SharedMsg msg
 template =
     { init = init
     , update = update
     , view = view
-    , map = map
-    , staticData = staticData
+    , data = data
     , subscriptions = subscriptions
-    , onPageChange = Just (\_ -> OnPageChange)
+    , onPageChange = Just OnPageChange
+    , sharedMsg = SharedMsg
     }
+
+
+type alias Data =
+    ()
 
 
 type SharedMsg
     = NoOp
 
 
-staticData : a -> StaticHttp.Request StaticData
-staticData siteMetadata =
-    StaticHttp.succeed ()
+type alias Model =
+    { menuBarAnimation : View.MenuBar.Model
+    , menuAnimation : Animation.State
+    , dimensions : Dimensions
+    , styles : List Animation.State
+    , showMenu : Bool
+    , isOnAir : TwitchButton.IsOnAir
+    , now : Maybe Time.Posix
+    , darkMode : DarkMode
+    }
 
 
-init : a -> ( Model, Cmd Msg )
-init initialPage =
+init :
+    Maybe Browser.Navigation.Key
+    -> Pages.Flags.Flags
+    ->
+        Maybe
+            { path :
+                { path : Path
+                , query : Maybe String
+                , fragment : Maybe String
+                }
+            , metadata : route
+            , pageUrl : Maybe PageUrl
+            }
+    -> ( Model, Cmd Msg )
+init navigationKey flags maybePagePath =
     ( { styles = ElmLogo.polygons |> List.map Animation.style
       , menuBarAnimation = View.MenuBar.init
       , menuAnimation =
@@ -97,6 +98,14 @@ init initialPage =
       , showMenu = False
       , isOnAir = TwitchButton.notOnAir
       , now = Nothing
+      , darkMode =
+            case flags of
+                Pages.Flags.BrowserFlags value ->
+                    Json.Decode.decodeValue (Json.Decode.field "darkMode" DarkMode.darkModeDecoder) value
+                        |> Result.withDefault DarkMode.Light
+
+                Pages.Flags.PreRenderFlags ->
+                    DarkMode.Light
       }
         |> updateStyles
     , Cmd.batch
@@ -139,77 +148,111 @@ updateStyles model =
     }
 
 
-type alias Model =
-    { menuBarAnimation : View.MenuBar.Model
-    , menuAnimation : Animation.State
-    , dimensions : Dimensions
-    , styles : List Animation.State
-    , showMenu : Bool
-    , isOnAir : TwitchButton.IsOnAir
-    , now : Maybe Time.Posix
-    }
+
+--update : Msg -> Model -> ( Model, Cmd Msg )
+--update msg model =
+--    case msg of
+--        OnPageChange _ ->
+--            ( { model | showMobileMenu = False }, Cmd.none )
+--
+--        SharedMsg globalMsg ->
+--            ( model, Cmd.none )
+--subscriptions : Path -> Model -> Sub Msg
+--subscriptions _ _ =
+--    Sub.none
 
 
-map : (msg1 -> msg2) -> PageView msg1 -> PageView msg2
-map fn doc =
-    { title = doc.title
-    , body = doc.body |> List.map (Element.map fn)
-    }
-
-
-type alias RenderedBody =
-    List (Element Never)
-
-
-type alias PageView msg =
-    { title : String
-    , body : List (Element msg)
-    }
-
-
-type alias StaticData =
-    ()
+data : DataSource.DataSource Data
+data =
+    DataSource.succeed ()
 
 
 view :
-    StaticData
-    -> { a | path : PagePath Pages.PathKey }
+    Data
+    ->
+        { path : Path
+        , frontmatter : route
+        }
     -> Model
     -> (Msg -> msg)
-    -> PageView msg
+    -> View msg
     -> { body : Html msg, title : String }
-view allMetadata page model toMsg viewForPage =
-    { title = viewForPage.title
-    , body =
-        (if model.showMenu then
-            Element.column
-                [ Element.height Element.fill
-                , Element.alignTop
-                , Element.width Element.fill
-                ]
-                [ View.Navbar.view model animationView (toMsg StartAnimation)
-                , View.Navbar.modalMenuView model.menuAnimation
-                ]
-
-         else
-            Element.column [ Element.width Element.fill ]
-                [ View.Navbar.view model animationView (toMsg StartAnimation)
-                , viewForPage.body
-                    |> Element.textColumn
+view sharedData page model toMsg pageView =
+    case pageView.body of
+        View.ElmUi elements ->
+            { title = pageView.title
+            , body =
+                (if model.showMenu then
+                    Element.column
                         [ Element.height Element.fill
-                        , Element.padding 30
-                        , Element.spacing 30
-                        , Element.centerX
-                        , if Dimensions.isMobile model.dimensions then
-                            Element.width (Element.fill |> Element.maximum 600)
-
-                          else
-                            Element.width (Element.fill |> Element.maximum 700)
+                        , Element.alignTop
+                        , Element.width Element.fill
                         ]
-                ]
-        )
-            |> Element.layout [ Element.width Element.fill ]
-    }
+                        [ View.Navbar.view model animationView (toMsg StartAnimation)
+                        , View.Navbar.modalMenuView model.menuAnimation
+                        ]
+
+                 else
+                    Element.column [ Element.width Element.fill ]
+                        [ View.Navbar.view model animationView (toMsg StartAnimation)
+                        , elements
+                            |> Element.textColumn
+                                [ Element.height Element.fill
+                                , Element.padding 30
+                                , Element.spacing 30
+                                , Element.centerX
+                                , if Dimensions.isMobile model.dimensions then
+                                    Element.width (Element.fill |> Element.maximum 600)
+
+                                  else
+                                    Element.width (Element.fill |> Element.maximum 700)
+                                ]
+                        ]
+                )
+                    |> Element.layout [ Element.width Element.fill ]
+            }
+
+        View.Tailwind nodes ->
+            { title = pageView.title
+            , body =
+                div
+                    [ css
+                        [ Tw.min_h_screen
+                        , Tw.w_full
+                        , Tw.relative
+                        , Tw.bg_background
+                        ]
+                    ]
+                    [ View.TailwindNavbar.view model.darkMode ToggleDarkMode ToggleMobileMenu page.path |> Html.Styled.map toMsg
+                    , div
+                        [ css
+                            [ Tw.pt_32
+                            , Tw.pb_16
+                            , Tw.px_8
+                            , Tw.flex
+                            , Tw.flex_col
+                            , Tw.text_foreground
+                            ]
+                        ]
+                        [ div
+                            [ css
+                                [ Bp.md [ Tw.mx_auto ]
+                                ]
+                            ]
+                            [ div
+                                [ css
+                                    [ Tw.text_foreground
+                                    , Css.fontFamilies [ "Open Sans" ]
+                                    , Tw.max_w_prose
+                                    , Tw.leading_7
+                                    ]
+                                ]
+                                nodes
+                            ]
+                        ]
+                    ]
+                    |> Html.Styled.toUnstyled
+            }
 
 
 animationView model =
@@ -220,7 +263,7 @@ animationView model =
         , viewBox "0 0 323.141 322.95"
         , width "100%"
         ]
-        [ Svg.g []
+        [ g []
             (List.map (\poly -> polygon (Animation.render poly) []) model.styles)
         ]
         |> Element.html
@@ -245,16 +288,28 @@ type Msg
     = StartAnimation
     | Animate Animation.Msg
     | InitialViewport Dom.Viewport
+    | ToggleDarkMode
+    | ToggleMobileMenu
     | WindowResized Int Int
-    | OnPageChange
     | OnAirUpdated (Result Http.Error TwitchButton.IsOnAir)
     | GotCurrentTime Time.Posix
+    | OnPageChange
+        { path : Path
+        , query : Maybe String
+        , fragment : Maybe String
+        }
     | SharedMsg SharedMsg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ToggleDarkMode ->
+            ( model, toggleDarkMode () )
+
+        ToggleMobileMenu ->
+            ( { model | showMenu = not model.showMenu }, Cmd.none )
+
         InitialViewport { viewport } ->
             ( { model
                 | dimensions =
@@ -324,7 +379,7 @@ update msg model =
             , Cmd.none
             )
 
-        OnPageChange ->
+        OnPageChange _ ->
             ( { model
                 | showMenu = False
                 , menuBarAnimation = View.MenuBar.init
@@ -349,8 +404,8 @@ update msg model =
                     ( model, Cmd.none )
 
 
-subscriptions : TemplateType -> PagePath Pages.PathKey -> Model -> Sub Msg
-subscriptions templateType path model =
+subscriptions : Path -> Model -> Sub Msg
+subscriptions _ model =
     Sub.batch
         [ Animation.subscription Animate
             (model.styles
@@ -363,6 +418,7 @@ subscriptions templateType path model =
         ]
 
 
+interpolation : Interpolation
 interpolation =
     Animation.easing
         { duration = second * 1
